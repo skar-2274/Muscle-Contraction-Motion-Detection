@@ -18,9 +18,9 @@ def analyse_contractions(video_path, frame_skip=5, resize_factor=0.5, applied_vo
     Returns:
     - contraction_times: List of times when contractions are detected, filtered by cooldown period.
     - voltage_trace: List containing the applied voltage values and zeros for plotting.
-    - video_length: Length of the video in seconds.
+    - video_length: The length of the video in seconds.
 
-    User must enter the input voltage and ensure that the cooldown_period, in seconds, is lower than the expected time period.
+    The user must enter the input voltage and ensure that the cooldown_period, in seconds, is lower than the expected time-period.
     Best suited to videos recorded at 60 FPS.
     For videos recorded at 30 FPS, use frame_skip=2.
     For videos recorded at 60 FPS, use frame_skip=5.
@@ -83,7 +83,7 @@ def analyse_contractions(video_path, frame_skip=5, resize_factor=0.5, applied_vo
 applied_voltage = 7
 cooldown_period = 0.5
 
-video_path = 'IMG_3295.MOV'
+video_path = 'IMG_3295.MOV' # This is an example video path. The user is free to input their own videos in any format.
 contraction_times_opt, voltage_trace_opt, video_length = analyse_contractions(video_path, applied_voltage=applied_voltage, cooldown_period=cooldown_period)
 
 # Calculate the number of contractions and the rate of contraction (Hz)
