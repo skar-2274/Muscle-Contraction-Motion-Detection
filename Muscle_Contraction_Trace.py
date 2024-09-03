@@ -4,23 +4,6 @@ import matplotlib.pyplot as plt
 
 def analyse_contractions(video_path, frame_skip=5, resize_factor=0.5, applied_voltage=True, cooldown_period=True):
     """
-    This code can analyse muscle contractions from an electrical stimulus by
-    processing a video file and plotting applied voltage on y-axis with a
-    cooldown period to filter out noise.
-
-    Parameters:
-    - video_path: Path to the video file.
-    - frame_skip: Number of frames to skip between analyses to reduce computation.
-    - resize_factor: Factor by which to resize frames to reduce computation.
-    - applied_voltage: The voltage applied during the experiment (V).
-    - cooldown_period: Minimum time (in seconds) between detected contractions to prevent false positives.
-
-    Returns:
-    - contraction_times: List of times when contractions are detected, filtered by cooldown period.
-    - voltage_trace: List containing the applied voltage values and zeros for plotting.
-    - video_length: The length of the video in seconds.
-
-    The user must enter the input voltage and ensure that the cooldown_period, in seconds, is lower than the expected time-period.
     Best suited to videos recorded at 60 FPS.
     For videos recorded at 30 FPS, use frame_skip=2.
     For videos recorded at 60 FPS, use frame_skip=5.
@@ -80,7 +63,7 @@ def analyse_contractions(video_path, frame_skip=5, resize_factor=0.5, applied_vo
     return times_with_zero, voltage_trace, video_length
 
 # User-defined parameters
-applied_voltage = 7
+applied_voltage = 7 # Enter the input voltage and ensure that the cooldown_period, in seconds, is lower than the expected time-period.
 cooldown_period = 0.5
 
 video_path = 'IMG_3295.MOV' # This is an example video path. The user is free to input their own videos in any format.
