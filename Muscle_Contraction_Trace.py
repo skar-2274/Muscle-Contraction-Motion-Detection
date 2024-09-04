@@ -70,11 +70,11 @@ video_path = 'IMG_3295.MOV' # This is an example video path. The user is free to
 contraction_times, voltage_trace, video_length = analyse_contractions(video_path, applied_voltage=applied_voltage, cooldown_period=cooldown_period)
 
 # Calculate the number of contractions and the rate of contraction (Hz)
-number_of_contractions = len(contraction_times_opt) // 2
+number_of_contractions = len(contraction_times) // 2
 rate_of_contraction = number_of_contractions / video_length
 
 plt.figure(figsize=(10, 6))
-plt.stem(contraction_times_opt, voltage_trace_opt, linefmt='g-', basefmt='g-', markerfmt='')
+plt.stem(contraction_times, voltage_trace, linefmt='g-', basefmt='g-', markerfmt='')
 plt.xlabel('Time (s)')
 plt.ylabel('Applied Voltage (V)')
 plt.title('Rate of Contractions with Applied Voltage')
