@@ -67,7 +67,7 @@ applied_voltage = 7 # Enter the input voltage and ensure that the cooldown_perio
 cooldown_period = 0.5
 
 video_path = 'IMG_3295.MOV' # This is an example video path. The user is free to input their own videos in any format.
-contraction_times_opt, voltage_trace_opt, video_length = analyse_contractions(video_path, applied_voltage=applied_voltage, cooldown_period=cooldown_period)
+contraction_times, voltage_trace, video_length = analyse_contractions(video_path, applied_voltage=applied_voltage, cooldown_period=cooldown_period)
 
 # Calculate the number of contractions and the rate of contraction (Hz)
 number_of_contractions = len(contraction_times_opt) // 2
