@@ -3,43 +3,41 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def analyse_contractions(video_path, frame_skip=5, resize_factor=0.5, applied_voltage=True, cooldown_period=True):
-    """
-    Best suited to videos recorded at 60 FPS.
-    For videos recorded at 30 FPS, use frame_skip=2.
-    For videos recorded at 60 FPS, use frame_skip=5.
-    """
+    # Initialize video capture and check if the video file is accessible.
+    # For 30 FPS set frame_skip=2 and for 60 FPS set frame_skip=5. Code is optimised for 60 FPS with all video formats supported by OpenCV.
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print("Error opening video file.")
+        print("Error: Could not open the video file.")
         return [], [], 0
 
+    # Extract video properties
     fps = cap.get(cv2.CAP_PROP_FPS)
-    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) * resize_factor)
-    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) * resize_factor)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) * resize_factor)
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) * resize_factor)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     video_length = total_frames / fps
 
     contraction_times = []
     ret, prev_frame = cap.read()
     if not ret:
-        print("Error reading the first frame of the video.")
+        print("Error: Could not read the first frame.")
         cap.release()
         return [], [], 0
 
-    prev_gray = cv2.cvtColor(cv2.resize(prev_frame, (frame_width, frame_height)), cv2.COLOR_BGR2GRAY)
+    prev_gray = cv2.cvtColor(cv2.resize(prev_frame, (width, height)), cv2.COLOR_BGR2GRAY)
 
     frame_idx = 0
     last_contraction_time = -cooldown_period
 
-    while True:
+    while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
         if frame_idx % frame_skip == 0:
-            frame_gray = cv2.cvtColor(cv2.resize(frame, (frame_width, frame_height)), cv2.COLOR_BGR2GRAY)
-            frame_diff = cv2.absdiff(frame_gray, prev_gray)
-            _, thresh = cv2.threshold(frame_diff, 30, 255, cv2.THRESH_BINARY)
+            current_gray = cv2.cvtColor(cv2.resize(frame, (width, height)), cv2.COLOR_BGR2GRAY)
+            diff = cv2.absdiff(current_gray, prev_gray)
+            _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
             motion_intensity = np.sum(thresh)
             motion_threshold = 500
 
@@ -48,40 +46,42 @@ def analyse_contractions(video_path, frame_skip=5, resize_factor=0.5, applied_vo
                 contraction_times.append(current_time)
                 last_contraction_time = current_time
 
-            prev_gray = frame_gray
+            prev_gray = current_gray
 
         frame_idx += 1
 
     cap.release()
 
+    # Prepare the voltage trace for plotting
     voltage_trace = []
-    times_with_zero = []
+    plot_times = []
     for time in contraction_times:
-        times_with_zero.extend([time, time])
+        plot_times.extend([time, time])
         voltage_trace.extend([0, applied_voltage])
 
-    return times_with_zero, voltage_trace, video_length
+    return plot_times, voltage_trace, video_length
 
-# User-defined parameters
-applied_voltage = 7 # Enter the input voltage and ensure that the cooldown_period, in seconds, is lower than the expected time-period.
-cooldown_period = 0.5
+# Parameters (customisable)
+applied_voltage = 7 # Input the voltage used during the stimulation process.
+cooldown_period = 0.5 # Make this value less than time period of the expected out frequency as calculated by 1/T.
+video_path = 'IMG_3295.MOV'  # Replace with your video file
 
-video_path = 'IMG_3295.MOV' # This is an example video path. The user is free to input their own videos in any format.
+# Analyse contractions
 contraction_times, voltage_trace, video_length = analyse_contractions(video_path, applied_voltage=applied_voltage, cooldown_period=cooldown_period)
 
-# Calculate the number of contractions and the rate of contraction (Hz)
-number_of_contractions = len(contraction_times) // 2
-rate_of_contraction = number_of_contractions / video_length
+# Calculate contractions stats
+contractions_count = len(contraction_times) // 2
+contraction_rate = contractions_count / video_length
 
 plt.figure(figsize=(10, 6))
 plt.stem(contraction_times, voltage_trace, linefmt='g-', basefmt='g-', markerfmt='')
 plt.xlabel('Time (s)')
 plt.ylabel('Applied Voltage (V)')
-plt.title('Rate of Contractions with Applied Voltage')
+plt.title('Contraction Activity with Applied Voltage')
 plt.ylim(0, applied_voltage + 1)
 plt.grid(True)
 
-plt.text(0.05, 0.97, f'Number of Contractions: {number_of_contractions}\nRate of Contraction: {rate_of_contraction:.2f} Hz',
+plt.text(0.05, 0.97, f'Number of Contractions: {contractions_count}\nRate of Contractions: {contraction_rate:.2f} Hz',
          transform=plt.gca().transAxes, fontsize=12, verticalalignment='top')
 
 plt.show()
