@@ -1,4 +1,4 @@
-# Muscle-Contraction-Motion-Dectection
+# Muscle-Contraction-Motion-Detection
 
 This project allows researchers in electrophysiology to create traces for muscle contraction recordings. 
 
