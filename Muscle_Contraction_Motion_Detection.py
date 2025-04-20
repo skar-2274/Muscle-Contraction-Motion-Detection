@@ -2,86 +2,170 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-def analyse_contractions(video_path, frame_skip=5, resize_factor=0.5, applied_voltage=True, cooldown_period=True):
-    # Initialize video capture and check if the video file is accessible.
-    # For 30 FPS set frame_skip=2 and for 60 FPS set frame_skip=5. Code is optimised for 60 FPS with all video formats supported by OpenCV.
+roi_box = None  # Global to store the selected ROI
+
+def draw_roi(event, x, y, flags, param):
+    global roi_box, ref_img, temp_img, selecting, start_pt
+    if event == cv2.EVENT_LBUTTONDOWN:
+        selecting = True
+        start_pt = (x, y)
+    elif event == cv2.EVENT_MOUSEMOVE and selecting:
+        temp_img = ref_img.copy()
+        cv2.rectangle(temp_img, start_pt, (x, y), (0, 255, 0), 2)
+        cv2.imshow("Select ROI", temp_img)
+    elif event == cv2.EVENT_LBUTTONUP:
+        selecting = False
+        end_pt = (x, y)
+        roi_box = (min(start_pt[0], end_pt[0]), min(start_pt[1], end_pt[1]),
+                   abs(start_pt[0] - end_pt[0]), abs(start_pt[1] - end_pt[1]))
+        cv2.rectangle(ref_img, start_pt, end_pt, (0, 255, 0), 2)
+        cv2.imshow("Select ROI", ref_img)
+
+def select_reference_frame(video_path, skip_frames=0):
+    global ref_img, temp_img, selecting, start_pt, roi_box
     cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        print("Error: Could not open the video file.")
-        return [], [], 0
-
-    # Extract video properties
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) * resize_factor)
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) * resize_factor)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    video_length = total_frames / fps
+    frame_num = skip_frames
+    selected_frame = None
+    paused = True
 
-    contraction_times = []
-    ret, prev_frame = cap.read()
-    if not ret:
-        print("Error: Could not read the first frame.")
-        cap.release()
-        return [], [], 0
+    print("Instructions:")
+    print("  ENTER: Select current frame as reference")
+    print("  P: Play/Pause")
+    print("  A/D: Step backward / forward")
+    print("  ESC: Exit\n")
 
-    prev_gray = cv2.cvtColor(cv2.resize(prev_frame, (width, height)), cv2.COLOR_BGR2GRAY)
+    while True:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+        ret, frame = cap.read()
+        if not ret:
+            print("Reached end of video.")
+            break
 
-    frame_idx = 0
-    last_contraction_time = -cooldown_period
+        frame_display = frame.copy()
+        cv2.putText(frame_display, f"Frame: {frame_num}/{total_frames - 1}", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.imshow('Select Reference Frame', frame_display)
 
-    while cap.isOpened():
+        key = cv2.waitKey(0 if paused else 30) & 0xFF
+
+        if key == 13:  # ENTER
+            selected_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            print(f"Selected frame {frame_num} as reference.")
+
+            # Let user select ROI
+            ref_img = frame.copy()
+            temp_img = ref_img.copy()
+            selecting = False
+            start_pt = None
+
+            cv2.namedWindow("Select ROI")
+            cv2.setMouseCallback("Select ROI", draw_roi)
+            print("Draw ROI with mouse. Press ENTER when done, or ESC to cancel.")
+            while True:
+                cv2.imshow("Select ROI", ref_img)
+                roi_key = cv2.waitKey(1) & 0xFF
+                if roi_key == 13:  # ENTER
+                    print(f"ROI selected: {roi_box}")
+                    break
+                elif roi_key == 27:  # ESC
+                    print("ROI selection cancelled.")
+                    roi_box = None
+                    break
+            cv2.destroyWindow("Select ROI")
+            break
+
+        elif key == 27:
+            print("Cancelled frame selection.")
+            break
+        elif key == ord('p'):
+            paused = not paused
+        elif key == ord('a'):
+            frame_num = max(skip_frames, frame_num - 1)
+        elif key == ord('d'):
+            frame_num = min(total_frames - 1, frame_num + 1)
+        elif not paused:
+            frame_num += 1
+            if frame_num >= total_frames:
+                print("Reached end of video.")
+                break
+
+    cap.release()
+    cv2.destroyAllWindows()
+    return selected_frame
+
+def extract_grayscale_frames(video_path, skip_frames=0):
+    cap = cv2.VideoCapture(video_path)
+    frames = []
+    current_frame = 0
+
+    while True:
         ret, frame = cap.read()
         if not ret:
             break
-
-        if frame_idx % frame_skip == 0:
-            current_gray = cv2.cvtColor(cv2.resize(frame, (width, height)), cv2.COLOR_BGR2GRAY)
-            diff = cv2.absdiff(current_gray, prev_gray)
-            _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
-            motion_intensity = np.sum(thresh)
-            motion_threshold = 500
-
-            current_time = frame_idx / fps
-            if motion_intensity > motion_threshold and (current_time - last_contraction_time) >= cooldown_period:
-                contraction_times.append(current_time)
-                last_contraction_time = current_time
-
-            prev_gray = current_gray
-
-        frame_idx += 1
+        if current_frame >= skip_frames:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            if roi_box:
+                x, y, w, h = roi_box
+                gray = gray[y:y+h, x:x+w]
+            frames.append(gray)
+        current_frame += 1
 
     cap.release()
+    return frames
 
-    # Prepare the voltage trace for plotting
-    voltage_trace = []
-    plot_times = []
-    for time in contraction_times:
-        plot_times.extend([time, time])
-        voltage_trace.extend([0, applied_voltage])
+def motion_analysis(frames, reference_frame):
+    amplitudes = []
+    ref = reference_frame.astype(np.float32)
+    if roi_box:
+        x, y, w, h = roi_box
+        ref = ref[y:y+h, x:x+w]
 
-    return plot_times, voltage_trace, video_length
+    for frame in frames:
+        current = frame.astype(np.float32)
+        diff = cv2.absdiff(current, ref)
+        amplitudes.append(np.mean(diff))
 
-# Parameters (customisable)
-applied_voltage = 7 # Input the voltage used during the stimulation process.
-cooldown_period = 0.5 # Make this value less than time period of the expected out frequency as calculated by 1/T.
-video_path = 'IMG_3295.MOV'  # Replace with your video file
+    return np.array(amplitudes)
 
-# Analyse contractions
-contraction_times, voltage_trace, video_length = analyse_contractions(video_path, applied_voltage=applied_voltage, cooldown_period=cooldown_period)
+def normalise_signal(signal):
+    return (signal - np.min(signal)) / (np.max(signal) - np.min(signal)) * 100
 
-# Calculate contractions stats
-contractions_count = len(contraction_times) // 2
-contraction_rate = contractions_count / video_length
+def main():
+    video_path = "video_file.mp4"  # Change to your video path with any format
+    skip_frames = 100 # Adjust in case of camera refocus
 
-plt.figure(figsize=(10, 6))
-plt.stem(contraction_times, voltage_trace, linefmt='g-', basefmt='g-', markerfmt='')
-plt.xlabel('Time (s)')
-plt.ylabel('Applied Voltage (V)')
-plt.title('Contraction Activity with Applied Voltage')
-plt.ylim(0, applied_voltage + 1)
-plt.grid(True)
+    ref_frame = select_reference_frame(video_path, skip_frames=skip_frames)
+    if ref_frame is None:
+        print("No reference frame selected. Exiting.")
+        return
 
-plt.text(0.05, 0.97, f'Number of Contractions: {contractions_count}\nRate of Contractions: {contraction_rate:.2f} Hz',
-         transform=plt.gca().transAxes, fontsize=12, verticalalignment='top')
+    frames = extract_grayscale_frames(video_path, skip_frames=skip_frames)
+    motion = motion_analysis(frames, ref_frame)
+    norm_motion = normalise_signal(motion)
 
-plt.show()
+    time_axis = np.arange(len(norm_motion)) / 30  # Adjust FPS if needed
+
+    plt.rcParams.update({
+        "font.family": "Arial",
+        "font.size": 20,
+        "axes.labelsize": 20,
+        "xtick.labelsize": 20,
+        "ytick.labelsize": 20
+    })
+
+    plt.figure(figsize=(8, 5), dpi=100)
+    plt.plot(time_axis, norm_motion, color='orange')
+    plt.xlabel("Time (s)")
+    plt.ylabel("Normalised Contraction\n(% change in area)")
+
+    ax = plt.gca()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig("Contractions.png")
+    plt.show()
+
+if __name__ == "__main__":
+    main()
